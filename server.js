@@ -25,7 +25,7 @@ const price = (km, type) => {
   return Math.round((t.base + km * t.km) * 10) / 10;
 };
 
-const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' };
+const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.apk': 'application/vnd.android.package-archive' };
 
 function body(req) {
   return new Promise(res => {
