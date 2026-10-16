@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>إدارة السائقين - سليماني تاكسي</title>
+<style>
+*{box-sizing:border-box;margin:0;font-family:"Segoe UI",Tahoma,Arial,sans-serif}
+body{background:#f4f4f2;color:#1c1c1c;padding:16px;max-width:720px;margin:auto}
+h1{font-size:20px;margin:6px 0 14px}
+input{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:16px;margin-bottom:8px}
+button{border:0;border-radius:10px;padding:10px 14px;font-size:15px;font-weight:700;cursor:pointer}
+.y{background:#f5b800}.g{background:#1a9d55;color:#fff}.r{background:#d33;color:#fff}
+.card{background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;border:1px solid #e4e4e0}
+.tag{display:inline-block;border-radius:10px;padding:2px 10px;font-size:13px;font-weight:700}
+.pending{background:#ffe9a8}.approved{background:#c8f0d6}.blocked{background:#f8c9c9}
+.row{display:flex;gap:8px;margin-top:8px}
+.hide{display:none}
+</style>
+</head>
+<body>
+<h1>🚕 إدارة السائقين</h1>
+<div id="login">
+  <input id="key" type="password" placeholder="مفتاح المدير (ADMIN_KEY)" dir="ltr">
+  <button class="y" id="go" style="width:100%">دخول</button>
+  <p id="msg" style="color:#d33;margin-top:8px"></p>
+</div>
+<div id="main" class="hide">
+  <div class="row" style="margin:0 0 12px"><button class="y" id="reload">تحديث</button><button id="out">خروج</button></div>
+  <div id="list"></div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let key = '';
+try { key = sessionStorage.getItem('ak') || ''; } catch {}
+const call = (u, m) => fetch(u, { method: m || 'GET', headers: { 'x-admin-key': key } }).then(async r => ({ ok: r.ok, j: await r.json() }));
+const LBL = { pending: 'قيد المراجعة', approved: 'معتمد', blocked: 'موقوف' };
+async function load() {
+  const { ok, j } = await call('/api/admin/drivers');
+  if (!ok) { $('msg').textContent = j.error || 'خطأ'; $('login').classList.remove('hide'); $('main').classList.add('hide'); return; }
+  $('login').classList.add('hide'); $('main').classList.remove('hide');
+  $('list').innerHTML = j.length ? '' : '<div class="card">لا يوجد سائقون مسجلون بعد.</div>';
+  j.forEach(d => {
+    const c = document.createElement('div'); c.className = 'card';
+    c.innerHTML = `<div><b>${esc(d.name)}</b> <span class="tag ${d.status}">${LBL[d.status] || d.status}</span></div>
+      <div dir="ltr" style="text-align:right">${esc(d.phone)}</div><div>${esc(d.car)} — ${esc(d.plate)}</div>
+      <div style="font-size:12px;color:#777">${new Date(d.created).toLocaleString('ar-TN')}</div>`;
+    const row = document.createElement('div'); row.className = 'row';
+    const mk = (t, cls, act) => { const b = document.createElement('button'); b.textContent = t; b.className = cls; b.onclick = async () => { await call(`/api/admin/drivers/${d.id}/${act}`, 'POST'); load(); }; row.appendChild(b); };
+    if (d.status !== 'approved') mk('✅ اعتماد', 'g', 'approve');
+    if (d.status !== 'blocked') mk('⛔ إيقاف', 'r', 'block');
+    c.appendChild(row); $('list').appendChild(c);
+  });
+}
+$('go').onclick = () => { key = $('key').value; try { sessionStorage.setItem('ak', key); } catch {} $('msg').textContent = ''; load(); };
+$('reload').onclick = load; $('out').onclick = () => { key = ''; try { sessionStorage.removeItem('ak'); } catch {} location.reload(); };
+if (key) load();
+</script>
+</body>
+</html>

@@ -25,10 +25,12 @@ L.control.zoom({ position: 'topleft' }).addTo(map);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 }).addTo(map);
 const icon = e => L.divIcon({ html: `<div class="pin">${e}</div>`, className: '', iconSize: [26, 26], iconAnchor: [13, 24] });
 let from = null, to = null, mFrom, mTo, mode = 'from', type = 'standard', prices = null;
-let rideId = null, pollT = null, role = 'pass';
+let rideId = null, pollT = null, role = 'pass', mDrv = null, fitted = false;
 
 Object.keys(GOVS).forEach(g => $('gov').add(new Option(g, g)));
-['dName', 'dPhone', 'dCar', 'dPlate'].forEach(i => $(i).value = load(i));
+$('dPhone').value = load('dPhone');
+const hav = (a, b) => { const R = 6371, r = x => x * Math.PI / 180, dl = r(b.lat - a.lat), dg = r(b.lng - a.lng); const h = Math.sin(dl / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dg / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)) * 1.3; };
+const navUrl = p => `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`;
 
 // ---------- تحديد النقاط ----------
 function setPoint(which, ll, name) {
@@ -102,7 +104,7 @@ $('newBtn').onclick = resetPass;
 function resetPass() {
   rideId = null; save('rideId', ''); clearTimeout(pollT);
   $('pRide').classList.add('hide'); $('pForm').classList.remove('hide');
-  [mFrom, mTo].forEach(m => m && map.removeLayer(m)); from = to = mFrom = mTo = null; mode = 'from';
+  [mFrom, mTo, mDrv].forEach(m => m && map.removeLayer(m)); from = to = mFrom = mTo = mDrv = null; mode = 'from'; fitted = false;
   $('fromIn').value = $('toIn').value = ''; $('reqBtn').disabled = true; $('kmInfo').textContent = '';
   $('pickHint').innerHTML = 'اضغط على الخريطة لتحديد: <b>نقطة الانطلاق</b>';
 }
@@ -113,6 +115,13 @@ function showRide(r) {
   $('rInfo').innerHTML = `<div>من: ${esc(r.fromName)}</div><div>إلى: ${esc(r.toName)}</div><div>النوع: ${NAMES[r.type]} — ${r.km} كم</div><div>السعر التقديري: <b>${r.price.toFixed(1)} د.ت</b></div>` +
     (d ? `<hr style="margin:8px 0;border:0;border-top:1px solid #ddd"><div>السائق: <b>${esc(d.name)}</b></div><div>السيارة: ${esc(d.car)} — ${esc(d.plate)}</div><a class="call" href="tel:${esc(d.phone)}">📞 اتصل بالسائق</a>` : '');
   const end = ['done', 'cancelled', 'expired'].includes(r.status);
+  if (r.driverLoc && !end) { // موقع السيارة مباشرة على الخريطة
+    const ll = [r.driverLoc.lat, r.driverLoc.lng];
+    if (mDrv) mDrv.setLatLng(ll); else mDrv = L.marker(ll, { icon: icon('🚕'), zIndexOffset: 1000 }).addTo(map);
+    const target = r.status === 'accepted' ? r.from : r.to, km = hav(r.driverLoc, target);
+    $('rInfo').insertAdjacentHTML('afterbegin', `<div style="font-weight:700;margin-bottom:6px">🚕 ${r.status === 'accepted' ? 'السائق يبعد عنك' : 'متبقٍ للوجهة'} نحو ${km.toFixed(1)} كم (≈ ${Math.max(1, Math.round(km / 30 * 60))} دقيقة)</div>`);
+    if (!fitted) { fitted = true; map.fitBounds(L.latLngBounds([ll, [target.lat, target.lng]]).pad(0.4)); }
+  } else if (end && mDrv) { map.removeLayer(mDrv); mDrv = null; }
   $('cancelBtn').classList.toggle('hide', end || r.status === 'ongoing'); $('newBtn').classList.toggle('hide', !end);
   return end;
 }
@@ -123,43 +132,103 @@ async function poll() {
 }
 
 // ---------- السائق ----------
-let online = false, dRideId = null, dT;
-$('goOnline').onclick = () => {
-  const v = ['dName', 'dPhone', 'dCar', 'dPlate'].map(i => $(i).value.trim());
-  if (v.some(x => !x)) return alert('أكمل بيانات السائق');
-  ['dName', 'dPhone', 'dCar', 'dPlate'].forEach((i, k) => save(i, v[k]));
-  online = true; $('dForm').classList.add('hide'); $('dList').classList.remove('hide'); loadReqs();
+let dToken = load('dtoken'), online = false, dRideId = null, dT, rpT, pendT, authMode = 'login', watchId = null, myLoc = null, lastPing = 0, dInit = false;
+const reqLayer = L.layerGroup().addTo(map);
+const VIEWS = ['dAuth', 'dPending', 'dList', 'dRide'];
+const showDView = v => VIEWS.forEach(x => $(x).classList.toggle('hide', x !== v));
+const dapi = (u, b) => fetch(u, { method: b === undefined ? 'GET' : 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + dToken }, body: b === undefined ? undefined : JSON.stringify(b) })
+  .then(async r => { const j = await r.json(); if (r.status === 401) driverOut(); return j; });
+
+function setAuthMode(m) {
+  authMode = m; $('regFields').classList.toggle('hide', m !== 'reg'); $('dAuthBtn').textContent = m === 'reg' ? 'إرسال طلب التسجيل' : 'دخول'; $('dAuthMsg').textContent = '';
+  $('aLogin').style.cssText = m === 'login' ? 'padding:10px;font-size:15px' : 'padding:10px;font-size:15px;background:var(--g);color:var(--k)';
+  $('aReg').style.cssText = m === 'reg' ? 'padding:10px;font-size:15px;background:var(--y);color:var(--k)' : 'padding:10px;font-size:15px;background:var(--g);color:var(--k)';
+  $('aLogin').className = m === 'login' ? 'btn y' : 'btn'; $('aReg').className = m === 'reg' ? 'btn y' : 'btn';
+}
+$('aLogin').onclick = () => setAuthMode('login'); $('aReg').onclick = () => setAuthMode('reg');
+$('dAuthBtn').onclick = async () => {
+  const b = { phone: $('dPhone').value, pin: $('dPin').value };
+  if (authMode === 'reg') Object.assign(b, { name: $('dName').value, car: $('dCar').value, plate: $('dPlate').value });
+  $('dAuthMsg').textContent = '';
+  const r = await post(authMode === 'reg' ? '/api/driver/register' : '/api/driver/login', b);
+  if (r.error) return $('dAuthMsg').textContent = r.error;
+  dToken = r.token; save('dtoken', dToken); save('dPhone', $('dPhone').value); $('dPin').value = '';
+  initDriver();
 };
-$('goOffline').onclick = () => { online = false; clearTimeout(dT); $('dList').classList.add('hide'); $('dForm').classList.remove('hide'); };
+function driverOut() {
+  dToken = ''; save('dtoken', ''); online = false; dRideId = null; clearTimeout(dT); clearTimeout(rpT); clearTimeout(pendT);
+  if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  reqLayer.clearLayers(); showDView('dAuth');
+}
+$('dOut').onclick = $('pendOut').onclick = driverOut;
+
+async function initDriver() {
+  clearTimeout(pendT);
+  if (!dToken) return showDView('dAuth');
+  const r = await dapi('/api/driver/me'); if (r.error) return;
+  const d = r.driver;
+  if (d.status === 'approved') {
+    if (r.activeRide) { dRideId = r.activeRide.id; showDView('dRide'); showDrv(r.activeRide); startGeo(); pollDRide(); } else goOnline();
+  } else {
+    $('pendTitle').textContent = d.status === 'blocked' ? '⛔ تم إيقاف حسابك' : '⏳ حسابك قيد المراجعة';
+    $('pendTxt').textContent = d.status === 'blocked' ? 'تواصل مع الإدارة لمعرفة السبب.' : 'سنقبل حسابك بعد التحقق من بياناتك. ستُفتح لك الطلبات تلقائياً عند الموافقة، ابقَ في هذه الصفحة أو عُد لاحقاً.';
+    showDView('dPending'); if (d.status === 'pending') pendT = setTimeout(initDriver, 8000);
+  }
+}
+function goOnline() { online = true; $('goOffline').textContent = 'إيقاف'; showDView('dList'); startGeo(); loadReqs(); }
+$('goOffline').onclick = () => {
+  if (online) { online = false; clearTimeout(dT); reqLayer.clearLayers(); $('cnt').textContent = '0'; $('reqs').innerHTML = '<div class="hint">أنت متوقف عن استقبال الطلبات.</div>'; $('goOffline').textContent = 'ابدأ الاستقبال'; }
+  else goOnline();
+};
+
+// موقع السائق: يُرسل للخادم ليرتّب الطلبات حسب القرب ويتتبعه الراكب
+function startGeo() {
+  if (watchId != null || !navigator.geolocation) return;
+  watchId = navigator.geolocation.watchPosition(pos => {
+    myLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    const now = Date.now();
+    if (now - lastPing > 8000 && dToken) { lastPing = now; dapi(dRideId ? `/api/rides/${dRideId}/loc` : '/api/driver/ping', myLoc); }
+  }, () => { myLoc = null; }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+}
 async function loadReqs() {
   clearTimeout(dT); if (!online) return;
   try {
-    const list = await api('/api/requests'); $('cnt').textContent = list.length;
-    $('reqs').innerHTML = '';
-    list.reverse().forEach(r => {
+    const list = await dapi('/api/requests' + (myLoc ? `?lat=${myLoc.lat}&lng=${myLoc.lng}` : ''));
+    if (list.error) { if (!dToken) return; return initDriver(); }
+    $('cnt').textContent = list.length;
+    $('locHint').textContent = myLoc ? 'مرتّبة حسب القرب منك (حتى 40 كم)' : 'لم نحدد موقعك. فعّل الموقع لترى الأقرب إليك أولاً.';
+    $('reqs').innerHTML = ''; reqLayer.clearLayers();
+    list.forEach(r => {
       const c = document.createElement('div'); c.className = 'card';
-      c.innerHTML = `<div><b>${NAMES[r.type]}</b></div><div>من: ${esc(r.fromName)}</div><div>إلى: ${esc(r.toName)}</div><div>${r.km} كم — <b>${r.price.toFixed(1)} د.ت</b></div>`;
+      c.innerHTML = (r.dist != null ? `<div style="font-weight:800">📍 يبعد عنك ${r.dist} كم</div>` : '') + `<div><b>${NAMES[r.type]}</b></div><div>من: ${esc(r.fromName)}</div><div>إلى: ${esc(r.toName)}</div><div>${r.km} كم — <b>${r.price.toFixed(1)} د.ت</b></div>`;
       const b = document.createElement('button'); b.className = 'btn y'; b.style.marginTop = '8px'; b.textContent = 'قبول الرحلة';
       b.onclick = () => accept(r); c.appendChild(b); $('reqs').appendChild(c);
-      L.marker(r.from, { icon: icon('🧍') }).addTo(map);
+      L.marker(r.from, { icon: icon('🧍') }).addTo(reqLayer);
     });
-    if (!list.length) $('reqs').innerHTML = '<div class="hint">لا توجد طلبات حالياً… سيتم التحديث تلقائياً</div>';
+    if (!list.length) $('reqs').innerHTML = '<div class="hint">لا توجد طلبات قريبة حالياً… سيتم التحديث تلقائياً</div>';
   } catch {}
   dT = setTimeout(loadReqs, 3000);
 }
 async function accept(r) {
-  const res = await post(`/api/rides/${r.id}/accept`, { name: $('dName').value, phone: $('dPhone').value, car: $('dCar').value, plate: $('dPlate').value });
+  const res = await dapi(`/api/rides/${r.id}/accept`, {});
   if (res.error) { alert(res.error); return loadReqs(); }
-  clearTimeout(dT); dRideId = r.id; $('dList').classList.add('hide'); $('dRide').classList.remove('hide');
-  map.setView(r.from, 14); showDrv(res);
+  clearTimeout(dT); online = false; reqLayer.clearLayers(); dRideId = r.id; showDView('dRide');
+  map.setView(r.from, 14); showDrv(res); pollDRide();
+  if (myLoc) dapi(`/api/rides/${r.id}/loc`, myLoc);
 }
 function showDrv(r) {
   $('dStatus').textContent = STATUS[r.status];
   $('dInfo').innerHTML = `<div>من: ${esc(r.fromName)}</div><div>إلى: ${esc(r.toName)}</div><div>السعر التقديري: <b>${r.price.toFixed(1)} د.ت</b></div>`;
   const nx = { accepted: ['بدأت الرحلة', 'start'], ongoing: ['أنهيت الرحلة', 'complete'] }[r.status];
-  $('dNext').classList.remove('hide');
-  if (nx) { $('dNext').textContent = nx[0]; $('dNext').onclick = async () => { const x = await post(`/api/rides/${dRideId}/${nx[1]}`); if (!x.error) showDrv(x); }; }
-  else { $('dNext').textContent = 'العودة للطلبات'; $('dNext').onclick = () => { $('dRide').classList.add('hide'); $('dList').classList.remove('hide'); loadReqs(); }; }
+  const nav = r.status === 'accepted' ? ['🧭 الاتجاهات إلى الراكب', r.from] : r.status === 'ongoing' ? ['🧭 الاتجاهات إلى الوجهة', r.to] : null;
+  $('navBtn').classList.toggle('hide', !nav); if (nav) { $('navBtn').textContent = nav[0]; $('navBtn').href = navUrl(nav[1]); }
+  if (nx) { $('dNext').textContent = nx[0]; $('dNext').onclick = async () => { const x = await dapi(`/api/rides/${dRideId}/${nx[1]}`, {}); if (x.error) alert(x.error); else { showDrv(x); if (x.status === 'done') dRideId = null; } }; }
+  else { dRideId = null; clearTimeout(rpT); $('dNext').textContent = 'العودة للطلبات'; $('dNext').onclick = () => { goOnline(); }; }
+}
+async function pollDRide() { // يكتشف إلغاء الراكب للرحلة
+  clearTimeout(rpT); if (!dRideId) return;
+  try { const r = await api(`/api/rides/${dRideId}`); if (!r.error && r.status === 'cancelled') return showDrv(r); } catch {}
+  rpT = setTimeout(pollDRide, 4000);
 }
 
 // ---------- التبديل بين الراكب والسائق ----------
@@ -167,6 +236,7 @@ function setRole(r) {
   role = r; $('tP').classList.toggle('on', r === 'pass'); $('tD').classList.toggle('on', r === 'drv');
   $('pass').classList.toggle('hide', r !== 'pass'); $('drv').classList.toggle('hide', r !== 'drv');
   setTimeout(() => map.invalidateSize(), 50);
+  if (r === 'drv' && !dInit) { dInit = true; initDriver(); }
 }
 $('tP').onclick = () => setRole('pass'); $('tD').onclick = () => setRole('drv');
 

@@ -105,19 +105,32 @@ a.call{display:block;text-align:center;margin-top:8px;padding:11px;border-radius
 
   <!-- السائق -->
   <div id="drv" class="panel hide">
-    <div id="dForm">
-      <div class="row"><input id="dName" placeholder="اسم السائق"><input id="dPhone" type="tel" placeholder="هاتف" dir="ltr"></div>
-      <div class="row"><input id="dCar" placeholder="نوع السيارة"><input id="dPlate" placeholder="رقم اللوحة"></div>
-      <button class="btn y" id="goOnline">ابدأ استقبال الطلبات</button>
+    <div id="dAuth">
+      <div class="row" style="margin-bottom:10px"><button class="btn y" id="aLogin" style="padding:10px;font-size:15px">دخول</button><button class="btn" id="aReg" style="padding:10px;font-size:15px;background:var(--g);color:var(--k)">تسجيل سائق جديد</button></div>
+      <div id="regFields" class="hide">
+        <input id="dName" placeholder="الاسم الكامل" autocomplete="name">
+        <div class="row"><input id="dCar" placeholder="نوع السيارة"><input id="dPlate" placeholder="رقم اللوحة"></div>
+      </div>
+      <input id="dPhone" type="tel" placeholder="رقم الهاتف (8 أرقام)" dir="ltr" autocomplete="tel">
+      <input id="dPin" type="password" placeholder="كلمة السر (6 أحرف على الأقل)" dir="ltr" autocomplete="current-password">
+      <button class="btn y" id="dAuthBtn">دخول</button>
+      <div class="hint" id="dAuthMsg" style="margin-top:8px;color:#d33"></div>
+    </div>
+    <div id="dPending" class="hide">
+      <div class="status" id="pendTitle">⏳ حسابك قيد المراجعة</div>
+      <div class="card" id="pendTxt">سنقبل حسابك بعد التحقق من بياناتك. ستُفتح لك الطلبات تلقائياً عند الموافقة، ابقَ في هذه الصفحة أو عد لاحقاً.</div>
+      <button class="btn red" id="pendOut">تسجيل الخروج</button>
     </div>
     <div id="dList" class="hide">
       <div class="status">الطلبات القريبة <span class="pill" id="cnt">0</span></div>
+      <div class="hint" id="locHint"></div>
       <div id="reqs"></div>
-      <button class="btn red" id="goOffline">إيقاف</button>
+      <div class="row"><button class="btn red" id="goOffline">إيقاف</button><button class="btn" id="dOut" style="background:var(--g);color:var(--k)">خروج</button></div>
     </div>
     <div id="dRide" class="hide">
       <div class="status" id="dStatus"></div>
       <div class="card" id="dInfo"></div>
+      <a id="navBtn" class="call" style="background:#2b6cb0;margin:0 0 8px" target="_blank" rel="noopener">🧭 افتح الاتجاهات</a>
       <button class="btn y" id="dNext"></button>
     </div>
   </div>
