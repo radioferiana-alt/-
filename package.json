@@ -1,0 +1,7 @@
+{
+  "name": "slimani-taxi",
+  "version": "1.0.0",
+  "description": "سليماني تاكسي - تطبيق طلب التاكسي في تونس",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" }
+}
