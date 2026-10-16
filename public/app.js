@@ -1,4 +1,8 @@
 const $ = id => document.getElementById(id);
+if (typeof L === 'undefined') {
+  document.body.innerHTML = '<div style="padding:30px;text-align:center;font:18px Tahoma,Arial">تعذّر تحميل الخريطة.<br>تأكد من اتصال الإنترنت ثم <a href="">أعد المحاولة</a></div>';
+  throw new Error('Leaflet not loaded');
+}
 const GOVS = {
   'تونس': [36.8065, 10.1815], 'أريانة': [36.8625, 10.1956], 'بن عروس': [36.7531, 10.2189], 'منوبة': [36.8081, 10.0863],
   'نابل': [36.4561, 10.7376], 'زغوان': [36.4029, 10.1429], 'بنزرت': [37.2744, 9.8739], 'باجة': [36.7256, 9.1817],
@@ -12,7 +16,7 @@ const NAMES = { standard: 'عادي', comfort: 'مريح', van: 'عائلي' };
 const STATUS = { searching: '🔎 نبحث عن سائق…', accepted: '✅ السائق في الطريق إليك', ongoing: '🚕 الرحلة جارية', done: '🏁 وصلت بسلامة', cancelled: '❌ تم الإلغاء', expired: '⌛ انتهت مهلة الطلب' };
 const save = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 const load = k => { try { return localStorage.getItem(k) || ''; } catch { return ''; } };
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const api = (u, o) => fetch(u, o).then(r => r.json());
 const post = (u, b) => api(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b || {}) });
 

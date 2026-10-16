@@ -1,1 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="#f5b800"/><path d="M18 58l7-18c1-3 4-5 7-5h36c3 0 6 2 7 5l7 18v14H18z" fill="#1c1c1c"/><rect x="38" y="24" width="24" height="9" rx="3" fill="#1c1c1c"/><circle cx="32" cy="72" r="7" fill="#f5b800" stroke="#1c1c1c" stroke-width="4"/><circle cx="68" cy="72" r="7" fill="#f5b800" stroke="#1c1c1c" stroke-width="4"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd23f"/>
+      <stop offset="1" stop-color="#f2a900"/>
+    </linearGradient>
+    <clipPath id="clip"><rect width="512" height="512" rx="112"/></clipPath>
+  </defs>
+  <g clip-path="url(#clip)">
+    <rect width="512" height="512" fill="url(#bg)"/>
+    <!-- شريط التاكسي المربّع -->
+    <g fill="#1c1c1c">
+      <rect x="0" y="396" width="64" height="32"/><rect x="128" y="396" width="64" height="32"/><rect x="256" y="396" width="64" height="32"/><rect x="384" y="396" width="64" height="32"/>
+      <rect x="64" y="428" width="64" height="32"/><rect x="192" y="428" width="64" height="32"/><rect x="320" y="428" width="64" height="32"/><rect x="448" y="428" width="64" height="32"/>
+    </g>
+    <ellipse cx="256" cy="388" rx="190" ry="10" fill="#000" opacity=".18"/>
+    <!-- لوحة التاكسي على السقف -->
+    <rect x="222" y="118" width="68" height="34" rx="9" fill="#1c1c1c"/>
+    <rect x="234" y="128" width="44" height="14" rx="4" fill="#ffd23f"/>
+    <rect x="248" y="150" width="16" height="16" fill="#1c1c1c"/>
+    <!-- السيارة -->
+    <path d="M160 238 L200 176 Q208 166 222 166 L300 166 Q314 166 322 176 L364 238 Z" fill="#1c1c1c"/>
+    <path d="M182 232 L210 188 Q213 184 219 184 L246 184 L246 232 Z" fill="#fff1b8"/>
+    <path d="M266 184 L293 184 Q299 184 302 188 L332 232 L266 232 Z" fill="#fff1b8"/>
+    <rect x="76" y="226" width="360" height="104" rx="38" fill="#1c1c1c"/>
+    <!-- مربعات صغيرة على الجسم -->
+    <g fill="#ffd23f">
+      <rect x="132" y="262" width="16" height="16"/><rect x="164" y="262" width="16" height="16"/><rect x="196" y="262" width="16" height="16"/><rect x="228" y="262" width="16" height="16"/><rect x="260" y="262" width="16" height="16"/><rect x="292" y="262" width="16" height="16"/><rect x="324" y="262" width="16" height="16"/><rect x="356" y="262" width="16" height="16"/>
+      <rect x="148" y="278" width="16" height="16"/><rect x="180" y="278" width="16" height="16"/><rect x="212" y="278" width="16" height="16"/><rect x="244" y="278" width="16" height="16"/><rect x="276" y="278" width="16" height="16"/><rect x="308" y="278" width="16" height="16"/><rect x="340" y="278" width="16" height="16"/>
+    </g>
+    <rect x="410" y="244" width="22" height="20" rx="8" fill="#ffd23f"/>
+    <rect x="80" y="246" width="16" height="20" rx="6" fill="#e0382d"/>
+    <!-- العجلات -->
+    <circle cx="150" cy="334" r="44" fill="#1c1c1c" stroke="#f7b500" stroke-width="10"/>
+    <circle cx="150" cy="334" r="16" fill="#ffd23f"/>
+    <circle cx="362" cy="334" r="44" fill="#1c1c1c" stroke="#f7b500" stroke-width="10"/>
+    <circle cx="362" cy="334" r="16" fill="#ffd23f"/>
+  </g>
+</svg>

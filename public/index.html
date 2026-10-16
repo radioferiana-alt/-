@@ -19,15 +19,17 @@
 html,body{height:100%;background:#fff;color:var(--k)}
 header{background:var(--y);height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;position:relative;z-index:1000}
 .logo{font-weight:800;font-size:20px;display:flex;align-items:center;gap:8px}
-.logo img{width:30px;height:30px;border-radius:8px}
+.logo img{width:40px;height:40px;border-radius:10px;box-shadow:0 1px 4px #0003}
 .tabs{display:flex;background:var(--k);border-radius:20px;padding:3px}
 .tabs button{border:0;background:none;color:#fff;padding:6px 14px;border-radius:18px;font-size:14px;cursor:pointer}
 .tabs button.on{background:var(--y);color:var(--k);font-weight:700}
-body{display:flex;flex-direction:column}
+body{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+button{touch-action:manipulation}
 #app{flex:1;min-height:0;display:flex;flex-direction:column}
 #map{flex:1;min-height:200px}
 .panel{background:#fff;border-top:1px solid var(--line);padding:12px 14px calc(12px + env(safe-area-inset-bottom));max-height:58%;overflow:auto;box-shadow:0 -4px 16px #0002;z-index:500}
-input,select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px;background:var(--g);margin-bottom:8px}
+input,select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:16px;background:var(--g);margin-bottom:8px}
+input{-webkit-appearance:none;appearance:none}
 .row{display:flex;gap:8px}.row>*{flex:1}
 .btn{width:100%;border:0;border-radius:12px;padding:14px;font-size:17px;font-weight:700;background:var(--k);color:#fff;cursor:pointer}
 .btn.y{background:var(--y);color:var(--k)}.btn.red{background:#fff;color:var(--bad);border:1px solid var(--bad)}
@@ -49,7 +51,7 @@ a.call{display:block;text-align:center;margin-top:8px;padding:11px;border-radius
 </head>
 <body>
 <header>
-  <div class="logo"><img src="icon.svg" alt="">سليماني تاكسي</div>
+  <div class="logo"><img src="icon.svg" alt=""><div style="line-height:1.1">سليماني<div style="font-size:11px;font-weight:600;letter-spacing:.5px">TAXI · تونس</div></div></div>
   <div class="tabs"><button id="tP" class="on">راكب</button><button id="tD">سائق</button></div>
 </header>
 <div id="install" class="hide" style="background:#1c1c1c;color:#fff;padding:8px 14px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:8px">
