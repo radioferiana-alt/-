@@ -1,0 +1,17 @@
+{
+  "name": "سليماني تاكسي",
+  "short_name": "سليماني",
+  "description": "اطلب تاكسي في كامل تونس",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5b800",
+  "theme_color": "#f5b800",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
