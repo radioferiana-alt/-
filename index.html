@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>سليماني تاكسي</title>
+<meta name="theme-color" content="#f5b800">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="سليماني">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--y:#f5b800;--k:#1c1c1c;--g:#f4f4f2;--line:#e4e4e0;--ok:#1a9d55;--bad:#d33}
+*{box-sizing:border-box;margin:0;font-family:"Segoe UI",Tahoma,Arial,sans-serif}
+html,body{height:100%;background:#fff;color:var(--k)}
+header{background:var(--y);height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;position:relative;z-index:1000}
+.logo{font-weight:800;font-size:20px;display:flex;align-items:center;gap:8px}
+.logo img{width:40px;height:40px;border-radius:10px;box-shadow:0 1px 4px #0003}
+.tabs{display:flex;background:var(--k);border-radius:20px;padding:3px}
+.tabs button{border:0;background:none;color:#fff;padding:6px 14px;border-radius:18px;font-size:14px;cursor:pointer}
+.tabs button.on{background:var(--y);color:var(--k);font-weight:700}
+body{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+button{touch-action:manipulation}
+#app{flex:1;min-height:0;display:flex;flex-direction:column}
+#map{flex:1;min-height:200px}
+.panel{background:#fff;border-top:1px solid var(--line);padding:12px 14px calc(12px + env(safe-area-inset-bottom));max-height:58%;overflow:auto;box-shadow:0 -4px 16px #0002;z-index:500}
+input,select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:16px;background:var(--g);margin-bottom:8px}
+input{-webkit-appearance:none;appearance:none}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.btn{width:100%;border:0;border-radius:12px;padding:14px;font-size:17px;font-weight:700;background:var(--k);color:#fff;cursor:pointer}
+.btn.y{background:var(--y);color:var(--k)}.btn.red{background:#fff;color:var(--bad);border:1px solid var(--bad)}
+.btn:disabled{opacity:.5}
+.types{display:flex;gap:8px;margin:4px 0 10px}
+.type{flex:1;border:2px solid var(--line);border-radius:12px;padding:8px 4px;text-align:center;cursor:pointer;font-size:13px}
+.type b{display:block;font-size:17px;margin-top:2px}
+.type.on{border-color:var(--y);background:#fff8dc}
+.sug{background:#fff;border:1px solid var(--line);border-radius:10px;margin:-6px 0 8px;max-height:160px;overflow:auto}
+.sug div{padding:9px 12px;border-bottom:1px solid var(--line);font-size:14px;cursor:pointer}
+.hint{font-size:13px;color:#666;margin-bottom:8px}
+.card{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;background:var(--g)}
+.status{font-size:18px;font-weight:800;margin-bottom:6px}
+.pill{display:inline-block;background:var(--y);border-radius:12px;padding:2px 10px;font-weight:700}
+.hide{display:none!important}
+a.call{display:block;text-align:center;margin-top:8px;padding:11px;border-radius:10px;background:var(--ok);color:#fff;text-decoration:none;font-weight:700}
+.pin{font-size:26px;line-height:26px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><img src="icon.svg" alt=""><div style="line-height:1.1">سليماني<div style="font-size:11px;font-weight:600;letter-spacing:.5px">TAXI · تونس</div></div></div>
+  <div class="tabs"><button id="tP" class="on">راكب</button><button id="tD">سائق</button></div>
+</header>
+<div id="install" class="hide" style="background:#1c1c1c;color:#fff;padding:8px 14px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+  <span id="installTxt"></span><button id="installBtn" class="hide" style="border:0;background:#f5b800;border-radius:8px;padding:6px 12px;font-weight:700">تثبيت</button><button id="installX" style="border:0;background:none;color:#fff;font-size:18px">×</button>
+</div>
+<div id="app">
+  <div id="map"></div>
+
+  <!-- الراكب -->
+  <div id="pass" class="panel">
+    <div id="pForm">
+      <div class="row">
+        <select id="gov"><option value="">القفز إلى ولاية…</option></select>
+        <button class="btn" id="locBtn" style="flex:0 0 auto;width:auto;padding:0 14px;margin-bottom:8px;font-size:14px">📍 موقعي</button>
+      </div>
+      <input id="fromIn" placeholder="نقطة الانطلاق (اضغط على الخريطة أو ابحث)">
+      <div id="fromSug" class="sug hide"></div>
+      <input id="toIn" placeholder="إلى أين؟ ابحث عن مكان أو اضغط على الخريطة">
+      <div id="toSug" class="sug hide"></div>
+      <div class="hint" id="pickHint">اضغط على الخريطة لتحديد: <b>نقطة الانطلاق</b></div>
+      <div class="types" id="types">
+        <div class="type on" data-t="standard">🚕 عادي<b>—</b></div>
+        <div class="type" data-t="comfort">🚖 مريح<b>—</b></div>
+        <div class="type" data-t="van">🚐 عائلي<b>—</b></div>
+      </div>
+      <div class="hint" id="kmInfo"></div>
+      <button class="btn y" id="reqBtn" disabled>اطلب تاكسي</button>
+    </div>
+    <div id="pRide" class="hide">
+      <div class="status" id="rStatus"></div>
+      <div class="card" id="rInfo"></div>
+      <button class="btn red" id="cancelBtn">إلغاء الطلب</button>
+      <button class="btn y hide" id="newBtn">رحلة جديدة</button>
+    </div>
+  </div>
+
+  <!-- السائق -->
+  <div id="drv" class="panel hide">
+    <div id="dForm">
+      <div class="row"><input id="dName" placeholder="اسم السائق"><input id="dPhone" type="tel" placeholder="هاتف" dir="ltr"></div>
+      <div class="row"><input id="dCar" placeholder="نوع السيارة"><input id="dPlate" placeholder="رقم اللوحة"></div>
+      <button class="btn y" id="goOnline">ابدأ استقبال الطلبات</button>
+    </div>
+    <div id="dList" class="hide">
+      <div class="status">الطلبات القريبة <span class="pill" id="cnt">0</span></div>
+      <div id="reqs"></div>
+      <button class="btn red" id="goOffline">إيقاف</button>
+    </div>
+    <div id="dRide" class="hide">
+      <div class="status" id="dStatus"></div>
+      <div class="card" id="dInfo"></div>
+      <button class="btn y" id="dNext"></button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
