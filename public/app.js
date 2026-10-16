@@ -174,14 +174,20 @@ $('tP').onclick = () => setRole('pass'); $('tD').onclick = () => setRole('drv');
 rideId = load('rideId') || null; if (rideId) poll();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 
-// دعوة لتثبيت التطبيق على الشاشة الرئيسية
+// زر تحميل التطبيق (أيقونة التحميل في الترويسة)
 (() => {
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
-  if (standalone || load('installX')) return;
-  const bar = $('install'), show = t => { $('installTxt').textContent = t; bar.classList.remove('hide'); };
-  $('installX').onclick = () => { bar.classList.add('hide'); save('installX', '1'); };
+  if (standalone) return $('dl').classList.add('hide');
+  const ua = navigator.userAgent, ios = /iphone|ipad|ipod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
   let ev;
-  addEventListener('beforeinstallprompt', e => { e.preventDefault(); ev = e; $('installBtn').classList.remove('hide'); show('ثبّت سليماني تاكسي على هاتفك'); });
-  $('installBtn').onclick = () => ev && ev.prompt();
-  if (/iphone|ipad|ipod/i.test(navigator.userAgent)) show('على آيفون: اضغط زر المشاركة ⬆️ ثم «إضافة إلى الشاشة الرئيسية»');
+  addEventListener('beforeinstallprompt', e => { e.preventDefault(); ev = e; });
+  addEventListener('appinstalled', () => $('dl').classList.add('hide'));
+  const help = t => { $('helpTxt').innerHTML = t; $('help').classList.add('show'); };
+  $('helpOk').onclick = () => $('help').classList.remove('show');
+  $('dl').onclick = async () => {
+    if (ev) { ev.prompt(); try { await ev.userChoice; } catch {} ev = null; return; }
+    if (ios) return help('اضغط زر <b>المشاركة</b> ⬆️ في Safari<br>ثم اختر <b>«إضافة إلى الشاشة الرئيسية»</b>');
+    if (/android/i.test(ua)) return help('اضغط قائمة المتصفح <b>⋮</b><br>ثم اختر <b>«تثبيت التطبيق»</b> أو <b>«إضافة إلى الشاشة الرئيسية»</b>');
+    help('اضغط أيقونة <b>التثبيت</b> في شريط العنوان أعلى المتصفح،<br>أو القائمة ⋮ ثم <b>«تثبيت سليماني تاكسي»</b>');
+  };
 })();

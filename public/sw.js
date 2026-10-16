@@ -1,5 +1,5 @@
 // يخزّن واجهة التطبيق فقط؛ طلبات الـ API تذهب دائماً للشبكة
-const C = 'slimani-v2', FILES = ['/', '/app.js', '/icon.svg', '/icon-192.png'];
+const C = 'slimani-v3', FILES = ['/', '/app.js', '/icon.svg', '/icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(C).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(x => x !== C).map(x => caches.delete(x)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {
