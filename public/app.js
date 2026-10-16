@@ -182,7 +182,11 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').cat
   let ev;
   addEventListener('beforeinstallprompt', e => { e.preventDefault(); ev = e; });
   addEventListener('appinstalled', () => $('dl').classList.add('hide'));
-  const help = t => { $('helpTxt').innerHTML = t; $('help').classList.add('show'); };
+  const isAndroid = /android/i.test(ua);
+  const help = t => {
+    $('helpTxt').innerHTML = t; $('help').classList.add('show');
+    $('apkLink').classList.toggle('hide', !isAndroid); $('apkNote').classList.toggle('hide', !isAndroid);
+  };
   $('helpOk').onclick = () => $('help').classList.remove('show');
   $('dl').onclick = async () => {
     if (ev) { ev.prompt(); try { await ev.userChoice; } catch {} ev = null; return; }
