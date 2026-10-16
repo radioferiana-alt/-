@@ -19,11 +19,17 @@ async function up(cmd) {
   if (j.error) throw new Error(j.error);
   return j.result;
 }
+let storage = UP_URL && UP_TOKEN ? 'upstash' : 'file';
 async function load() {
-  if (UP_URL && UP_TOKEN) {
-    // إذا فشل التحميل نتوقف بدل أن نكتب حالة فارغة فوق البيانات المحفوظة
-    const s = await up(['GET', UP_KEY]);
-    if (s) db = JSON.parse(s);
+  if (storage === 'upstash') {
+    // إذا فشل التحميل نبقى على الملف ولا نكتب أبداً في Upstash، فلا نمسح البيانات المحفوظة هناك
+    try {
+      const s = await up(['GET', UP_KEY]);
+      if (s) db = JSON.parse(s);
+    } catch (e) {
+      console.error('تعذر الاتصال بـ Upstash، سأعمل بالملف المؤقت ولن أكتب في Upstash:', e.message);
+      storage = 'file-fallback';
+    }
   } else {
     try { db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); } catch {}
   }
@@ -36,7 +42,7 @@ async function flush() {
   dirty = false;
   db.rides = db.rides.filter(r => Date.now() - r.created < 3 * 864e5);
   const s = JSON.stringify(db);
-  try { if (UP_URL && UP_TOKEN) await up(['SET', UP_KEY, s]); else fs.writeFileSync(DB_FILE, s); }
+  try { if (storage === 'upstash') await up(['SET', UP_KEY, s]); else fs.writeFileSync(DB_FILE, s); }
   catch (e) { console.log('save failed:', e.message); dirty = true; timer = setTimeout(flush, 5000); }
 }
 async function shutdown() { clearTimeout(timer); await flush(); process.exit(0); }
@@ -100,6 +106,8 @@ setInterval(expire, 30e3).unref();
 // ---------- الواجهة البرمجية ----------
 async function api(req, res, url) {
   const m = req.method, p = url.pathname;
+
+  if (m === 'GET' && p === '/api/health') return send(res, 200, { ok: true, storage, drivers: Object.keys(db.drivers).length, admin: !!ADMIN_KEY });
 
   // ===== الراكب =====
   if (m === 'POST' && p === '/api/rides') {
@@ -236,5 +244,5 @@ const server = http.createServer((req, res) => {
   });
 });
 
-load().then(() => server.listen(PORT, () => console.log(`سليماني تاكسي يعمل على http://localhost:${PORT} | تخزين: ${UP_URL ? 'Upstash' : 'ملف'} | مدير: ${ADMIN_KEY ? 'مفعّل' : 'غير مفعّل'}`)))
-  .catch(e => { console.error('تعذر تحميل البيانات المحفوظة، لن أبدأ كي لا أمسحها:', e.message); process.exit(1); });
+load().then(() => server.listen(PORT, () => console.log(`سليماني تاكسي يعمل على http://localhost:${PORT} | تخزين: ${storage} | مدير: ${ADMIN_KEY ? 'مفعّل' : 'غير مفعّل'}`)))
+  .catch(e => { console.error('تعذر تحميل البيانات:', e.message); process.exit(1); });
