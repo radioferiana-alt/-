@@ -4,58 +4,109 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>إدارة السائقين - سليماني تاكسي</title>
+<title>إدارة سليماني تاكسي</title>
 <style>
 *{box-sizing:border-box;margin:0;font-family:"Segoe UI",Tahoma,Arial,sans-serif}
-body{background:#f4f4f2;color:#1c1c1c;padding:16px;max-width:720px;margin:auto}
+body{background:#f4f4f2;color:#1c1c1c;padding:16px;max-width:760px;margin:auto}
 h1{font-size:20px;margin:6px 0 14px}
+h2{font-size:16px;margin:18px 0 8px}
 input{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:16px;margin-bottom:8px}
-button{border:0;border-radius:10px;padding:10px 14px;font-size:15px;font-weight:700;cursor:pointer}
-.y{background:#f5b800}.g{background:#1a9d55;color:#fff}.r{background:#d33;color:#fff}
+button{border:0;border-radius:10px;padding:10px 14px;font-size:14px;font-weight:700;cursor:pointer}
+.y{background:#f5b800}.g{background:#1a9d55;color:#fff}.r{background:#d33;color:#fff}.k{background:#1c1c1c;color:#fff}
 .card{background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;border:1px solid #e4e4e0}
 .tag{display:inline-block;border-radius:10px;padding:2px 10px;font-size:13px;font-weight:700}
 .pending{background:#ffe9a8}.approved{background:#c8f0d6}.blocked{background:#f8c9c9}
-.row{display:flex;gap:8px;margin-top:8px}
+.row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.stat{background:#fff;border:1px solid #e4e4e0;border-radius:12px;padding:12px}
+.stat small{color:#666;font-size:12px}.stat b{display:block;font-size:20px;margin-top:4px}
+.stat.main{background:#1c1c1c;color:#fff;grid-column:1/-1}.stat.main small{color:#bbb}.stat.main b{color:#f5b800;font-size:26px}
+.due{color:#b85c00;font-weight:700}.ok{color:#1a9d55;font-weight:700}
+.line{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:6px 0;border-bottom:1px solid #eee}
 .hide{display:none}
+label{font-size:13px;color:#555}
 </style>
 </head>
 <body>
-<h1>🚕 إدارة السائقين</h1>
+<h1>🚕 إدارة سليماني تاكسي</h1>
 <div id="login">
-  <input id="key" type="password" placeholder="مفتاح المدير (ADMIN_KEY)" dir="ltr">
-  <button class="y" id="go" style="width:100%">دخول</button>
+  <input id="key" type="password" placeholder="مفتاح المدير" dir="ltr">
+  <button class="y" id="go" style="width:100%;padding:12px;font-size:16px">دخول</button>
   <p id="msg" style="color:#d33;margin-top:8px"></p>
 </div>
 <div id="main" class="hide">
   <div class="row" style="margin:0 0 12px"><button class="y" id="reload">تحديث</button><button id="out">خروج</button></div>
+
+  <h2>💰 أرباحك (بالدينار التونسي)</h2>
+  <div class="grid" id="stats"></div>
+
+  <h2>⚙️ نسب الربح</h2>
+  <div class="card">
+    <div class="row" style="margin:0">
+      <div style="flex:1;min-width:140px"><label>عمولتك من كل رحلة (٪)</label><input id="pct" type="number" step="0.5" min="0" max="50" inputmode="decimal"></div>
+      <div style="flex:1;min-width:140px"><label>اشتراك السائق الشهري (د.ت)</label><input id="sub" type="number" step="0.5" min="0" max="1000" inputmode="decimal"></div>
+    </div>
+    <button class="k" id="saveSet" style="width:100%">حفظ النسب</button>
+    <div id="setMsg" style="font-size:13px;margin-top:6px"></div>
+    <div style="font-size:12px;color:#777;margin-top:6px">العمولة تُحسب من السعر التقديري للرحلة عند إنهائها، وتُسجَّل «مستحقة» على السائق حتى تؤشّر أنك استلمتها.</div>
+  </div>
+
+  <h2>👥 السائقون</h2>
   <div id="list"></div>
+
+  <h2>🧾 آخر العمليات</h2>
+  <div class="card" id="recent"></div>
 </div>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const tnd = n => Number(n || 0).toFixed(3) + ' د.ت';
 let key = '';
 try { key = sessionStorage.getItem('ak') || ''; } catch {}
-const call = (u, m) => fetch(u, { method: m || 'GET', headers: { 'x-admin-key': key } }).then(async r => ({ ok: r.ok, j: await r.json() }));
+const call = (u, m, b) => fetch(u, { method: m || 'GET', headers: { 'x-admin-key': key, 'Content-Type': 'application/json' }, body: b ? JSON.stringify(b) : undefined }).then(async r => ({ ok: r.ok, j: await r.json() }));
 const LBL = { pending: 'قيد المراجعة', approved: 'معتمد', blocked: 'موقوف' };
+const TYPE = { commission: 'عمولة رحلة', subscription: 'اشتراك شهري' };
+
 async function load() {
-  const { ok, j } = await call('/api/admin/drivers');
-  if (!ok) { $('msg').textContent = j.error || 'خطأ'; $('login').classList.remove('hide'); $('main').classList.add('hide'); return; }
+  const [d, s] = await Promise.all([call('/api/admin/drivers'), call('/api/admin/summary')]);
+  if (!d.ok || !s.ok) { $('msg').textContent = (d.j && d.j.error) || 'خطأ'; $('login').classList.remove('hide'); $('main').classList.add('hide'); return; }
   $('login').classList.add('hide'); $('main').classList.remove('hide');
-  $('list').innerHTML = j.length ? '' : '<div class="card">لا يوجد سائقون مسجلون بعد.</div>';
-  j.forEach(d => {
+  const t = s.j.totals;
+  $('stats').innerHTML = `
+    <div class="stat main"><small>إجمالي أرباحك المسجّلة</small><b>${tnd(t.all)}</b></div>
+    <div class="stat"><small>اليوم</small><b>${tnd(t.today)}</b></div>
+    <div class="stat"><small>هذا الشهر</small><b>${tnd(t.month)}</b></div>
+    <div class="stat"><small>استلمتَه فعلاً ✅</small><b class="ok">${tnd(t.collected)}</b></div>
+    <div class="stat"><small>لم تستلمه بعد ⏳</small><b class="due">${tnd(t.due)}</b></div>
+    <div class="stat"><small>من العمولات (${t.rides} رحلة)</small><b>${tnd(t.commission)}</b></div>
+    <div class="stat"><small>من الاشتراكات</small><b>${tnd(t.subscription)}</b></div>`;
+  $('pct').value = s.j.settings.commissionPct; $('sub').value = s.j.settings.subscription;
+
+  $('list').innerHTML = s.j.drivers.length ? '' : '<div class="card">لا يوجد سائقون مسجلون بعد.</div>';
+  s.j.drivers.forEach(x => {
     const c = document.createElement('div'); c.className = 'card';
-    c.innerHTML = `<div><b>${esc(d.name)}</b> <span class="tag ${d.status}">${LBL[d.status] || d.status}</span></div>
-      <div dir="ltr" style="text-align:right">${esc(d.phone)}</div><div>${esc(d.car)} — ${esc(d.plate)}</div>
-      <div style="font-size:12px;color:#777">${new Date(d.created).toLocaleString('ar-TN')}</div>`;
+    c.innerHTML = `<div><b>${esc(x.name)}</b> <span class="tag ${x.status}">${LBL[x.status] || x.status}</span></div>
+      <div dir="ltr" style="text-align:right">${esc(x.phone)}</div><div>${esc(x.car)} — ${esc(x.plate)}</div>
+      <div style="margin-top:6px;font-size:13px">رحلات: <b>${x.rides}</b> · عمولات مستحقة: ${tnd(x.commissionDue)} · اشتراك مستحق: ${tnd(x.subscriptionDue)}</div>
+      <div style="font-size:14px;margin-top:4px">عليه لك: <span class="due">${tnd(x.due)}</span> · دفع لك: <span class="ok">${tnd(x.paid)}</span></div>`;
     const row = document.createElement('div'); row.className = 'row';
-    const mk = (t, cls, act) => { const b = document.createElement('button'); b.textContent = t; b.className = cls; b.onclick = async () => { await call(`/api/admin/drivers/${d.id}/${act}`, 'POST'); load(); }; row.appendChild(b); };
-    if (d.status !== 'approved') mk('✅ اعتماد', 'g', 'approve');
-    if (d.status !== 'blocked') mk('⛔ إيقاف', 'r', 'block');
+    const mk = (txt, cls, fn) => { const b = document.createElement('button'); b.textContent = txt; b.className = cls; b.onclick = async () => { b.disabled = true; await fn(); load(); }; row.appendChild(b); };
+    if (x.status !== 'approved') mk('✅ اعتماد', 'g', () => call(`/api/admin/drivers/${x.id}/approve`, 'POST'));
+    if (x.status !== 'blocked') mk('⛔ إيقاف', 'r', () => call(`/api/admin/drivers/${x.id}/block`, 'POST'));
+    if (x.due > 0) mk(`💵 استلمتُ ${tnd(x.due)}`, 'k', async () => { if (confirm(`تأكيد: استلمتَ ${tnd(x.due)} من ${x.name}؟`)) await call(`/api/admin/drivers/${x.id}/settle`, 'POST'); });
+    if (x.status === 'approved') mk('➕ اشتراك شهري', 'y', async () => { if (confirm(`إضافة اشتراك شهري جديد على ${x.name}؟`)) await call(`/api/admin/drivers/${x.id}/subscription`, 'POST'); });
     c.appendChild(row); $('list').appendChild(c);
   });
+
+  $('recent').innerHTML = s.j.recent.length ? s.j.recent.map(e => `<div class="line"><span>${TYPE[e.type] || e.type} — ${esc(e.driver)}${e.ridePrice ? ` (رحلة ${tnd(e.ridePrice)})` : ''}</span><span class="${e.status === 'paid' ? 'ok' : 'due'}">${tnd(e.amount)} ${e.status === 'paid' ? '✅' : '⏳'}</span></div>`).join('') : 'لا توجد عمليات بعد.';
 }
 $('go').onclick = () => { key = $('key').value; try { sessionStorage.setItem('ak', key); } catch {} $('msg').textContent = ''; load(); };
 $('reload').onclick = load; $('out').onclick = () => { key = ''; try { sessionStorage.removeItem('ak'); } catch {} location.reload(); };
+$('saveSet').onclick = async () => {
+  const r = await call('/api/admin/settings', 'POST', { commissionPct: $('pct').value, subscription: $('sub').value });
+  $('setMsg').style.color = r.ok ? '#1a9d55' : '#d33'; $('setMsg').textContent = r.ok ? 'تم الحفظ ✓ (يسري على الرحلات القادمة)' : (r.j.error || 'خطأ');
+  if (r.ok) load();
+};
 if (key) load();
 </script>
 </body>

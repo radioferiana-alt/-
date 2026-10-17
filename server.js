@@ -34,6 +34,8 @@ async function load() {
     try { db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); } catch {}
   }
   db.rides = db.rides || []; db.drivers = db.drivers || {};
+  db.ledger = db.ledger || [];
+  db.settings = Object.assign({ commissionPct: 10, subscription: 20 }, db.settings || {});
 }
 let dirty = false, timer = null;
 function save() { dirty = true; if (!timer) timer = setTimeout(flush, 1500); }
@@ -97,6 +99,37 @@ function isAdmin(req) {
   return crypto.timingSafeEqual(a, crypto.createHash('sha256').update(ADMIN_KEY).digest());
 }
 const activeRide = d => db.rides.find(r => r.driverId === d.id && ['accepted', 'ongoing'].includes(r.status));
+
+// ---------- دفتر الأرباح بالدينار التونسي (يُحسب بالمليم لتفادي أخطاء الكسور) ----------
+const toMil = tnd => Math.round(tnd * 1000);
+const fromMil = m => m / 1000;
+function addLedger(type, driverId, amountMil, extra = {}) {
+  db.ledger.push({ id: crypto.randomUUID(), type, driverId, amountMil, at: Date.now(), status: 'due', paidAt: null, ...extra });
+}
+const commissionMil = priceTnd => Math.round(toMil(priceTnd) * db.settings.commissionPct / 100);
+function balanceOf(driverId) {
+  let due = 0, paid = 0;
+  for (const e of db.ledger) if (e.driverId === driverId) { if (e.status === 'paid') paid += e.amountMil; else due += e.amountMil; }
+  return { due: fromMil(due), paid: fromMil(paid) };
+}
+function summary() {
+  const now = new Date(), startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime(), startMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const sum = f => fromMil(db.ledger.filter(f).reduce((s, e) => s + e.amountMil, 0));
+  const drivers = Object.values(db.drivers).map(d => {
+    const mine = db.ledger.filter(e => e.driverId === d.id);
+    const add = (f) => fromMil(mine.filter(f).reduce((s, e) => s + e.amountMil, 0));
+    return { ...driverPub(d), rides: mine.filter(e => e.type === 'commission').length,
+      commissionDue: add(e => e.type === 'commission' && e.status === 'due'), subscriptionDue: add(e => e.type === 'subscription' && e.status === 'due'),
+      due: add(e => e.status === 'due'), paid: add(e => e.status === 'paid') };
+  }).sort((a, b) => b.due - a.due || b.created - a.created);
+  return {
+    settings: db.settings,
+    totals: { today: sum(e => e.at >= startDay), month: sum(e => e.at >= startMonth), all: sum(() => true), collected: sum(e => e.status === 'paid'), due: sum(e => e.status === 'due'),
+      commission: sum(e => e.type === 'commission'), subscription: sum(e => e.type === 'subscription'), rides: db.ledger.filter(e => e.type === 'commission').length },
+    drivers,
+    recent: db.ledger.slice(-15).reverse().map(e => ({ type: e.type, amount: fromMil(e.amountMil), at: e.at, status: e.status, driver: (db.drivers[e.driverId] || {}).name || '؟', ridePrice: e.ridePrice })),
+  };
+}
 function expire() {
   const now = Date.now();
   db.rides.forEach(x => { if (x.status === 'searching' && now - x.created > 10 * 60e3) { x.status = 'expired'; save(); } });
@@ -168,7 +201,7 @@ async function api(req, res, url) {
     const d = driverFrom(req);
     if (!d) return send(res, 401, { error: 'سجّل الدخول من جديد' });
 
-    if (m === 'GET' && p === '/api/driver/me') return send(res, 200, { driver: driverPub(d), activeRide: (activeRide(d) && pub(activeRide(d))) || null });
+    if (m === 'GET' && p === '/api/driver/me') return send(res, 200, { driver: driverPub(d), activeRide: (activeRide(d) && pub(activeRide(d))) || null, balance: balanceOf(d.id), commissionPct: db.settings.commissionPct });
     if (d.status !== 'approved') return send(res, 403, { error: d.status === 'blocked' ? 'تم إيقاف حسابك' : 'حسابك قيد المراجعة' });
 
     if (m === 'POST' && p === '/api/driver/ping') {
@@ -197,7 +230,10 @@ async function api(req, res, url) {
       if (d.loc) ride.driverLoc = d.loc;
     } else if (ride.driverId !== d.id) return send(res, 403, { error: 'هذه ليست رحلتك' });
     else if (act === 'start' && ride.status === 'accepted') ride.status = 'ongoing';
-    else if (act === 'complete' && ride.status === 'ongoing') ride.status = 'done';
+    else if (act === 'complete' && ride.status === 'ongoing') {
+      ride.status = 'done'; ride.doneAt = Date.now();
+      addLedger('commission', d.id, commissionMil(ride.price), { rideId: ride.id, ridePrice: ride.price });
+    }
     else if (act === 'loc' && validPt(b) && ['accepted', 'ongoing'].includes(ride.status)) { ride.driverLoc = { lat: b.lat, lng: b.lng, t: Date.now() }; d.loc = ride.driverLoc; }
     else return send(res, 409, { error: 'لا يمكن تنفيذ هذا الإجراء الآن' });
     save();
@@ -218,12 +254,30 @@ async function api(req, res, url) {
     if (!ADMIN_KEY) return send(res, 503, { error: 'لم يُعرَّف ADMIN_KEY على الخادم' });
     if (!isAdmin(req)) { if (limited('adm:' + ip(req), 10, 15 * 60e3)) return send(res, 429, { error: 'محاولات كثيرة' }); return send(res, 401, { error: 'مفتاح المدير غير صحيح' }); }
     if (m === 'GET' && p === '/api/admin/drivers') return send(res, 200, Object.values(db.drivers).sort((a, b) => b.created - a.created).map(driverPub));
-    r = p.match(/^\/api\/admin\/drivers\/([\w-]+)\/(approve|block)$/);
+    if (m === 'GET' && p === '/api/admin/summary') return send(res, 200, summary());
+    if (m === 'POST' && p === '/api/admin/settings') {
+      const b = await body(req), pct = Number(b.commissionPct), sub = Number(b.subscription);
+      if (!(pct >= 0 && pct <= 50) || !(sub >= 0 && sub <= 1000)) return send(res, 400, { error: 'العمولة بين 0 و50٪ والاشتراك بين 0 و1000 د.ت' });
+      db.settings = { commissionPct: Math.round(pct * 100) / 100, subscription: Math.round(sub * 1000) / 1000 }; save();
+      return send(res, 200, db.settings);
+    }
+    r = p.match(/^\/api\/admin\/drivers\/([\w-]+)\/(approve|block|settle|subscription)$/);
     if (r && m === 'POST') {
       const d = db.drivers[r[1]];
       if (!d) return send(res, 404, { error: 'غير موجود' });
+      if (r[2] === 'settle') { // استلمت المال: كل مستحقات السائق تصبح «مدفوعة»
+        const now = Date.now(); let n = 0;
+        db.ledger.forEach(e => { if (e.driverId === d.id && e.status === 'due') { e.status = 'paid'; e.paidAt = now; n++; } });
+        save(); return send(res, 200, { settled: n, balance: balanceOf(d.id) });
+      }
+      if (r[2] === 'subscription') { // اشتراك شهري جديد
+        if (db.settings.subscription > 0) addLedger('subscription', d.id, toMil(db.settings.subscription));
+        save(); return send(res, 200, { balance: balanceOf(d.id) });
+      }
       d.status = r[2] === 'approve' ? 'approved' : 'blocked';
       if (d.status === 'blocked') d.tokens = [];
+      // أول اعتماد: رسم الاشتراك الأول
+      if (d.status === 'approved' && db.settings.subscription > 0 && !db.ledger.some(e => e.driverId === d.id && e.type === 'subscription')) addLedger('subscription', d.id, toMil(db.settings.subscription));
       save();
       return send(res, 200, driverPub(d));
     }

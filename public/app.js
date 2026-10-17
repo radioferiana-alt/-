@@ -175,7 +175,12 @@ async function initDriver() {
     showDView('dPending'); if (d.status === 'pending') pendT = setTimeout(initDriver, 8000);
   }
 }
-function goOnline() { online = true; $('goOffline').textContent = 'إيقاف'; showDView('dList'); startGeo(); loadReqs(); }
+function showBalance(b, pct) {
+  const f = n => Number(n || 0).toFixed(3) + ' د.ت';
+  $('balHint').innerHTML = `💰 المستحق عليك لإدارة سليماني: <b style="color:#b85c00">${f(b.due)}</b><br><span style="color:#666;font-size:12px">عمولة ${pct}٪ من كل رحلة تنتهي + الاشتراك الشهري. المدفوع حتى الآن: ${f(b.paid)}</span>`;
+}
+async function refreshBalance() { const r = await dapi('/api/driver/me'); if (r && r.balance) showBalance(r.balance, r.commissionPct); }
+function goOnline() { online = true; $('goOffline').textContent = 'إيقاف'; showDView('dList'); startGeo(); refreshBalance(); loadReqs(); }
 $('goOffline').onclick = () => {
   if (online) { online = false; clearTimeout(dT); reqLayer.clearLayers(); $('cnt').textContent = '0'; $('reqs').innerHTML = '<div class="hint">أنت متوقف عن استقبال الطلبات.</div>'; $('goOffline').textContent = 'ابدأ الاستقبال'; }
   else goOnline();
